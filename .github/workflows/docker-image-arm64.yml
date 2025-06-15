@@ -43,7 +43,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            doomnaiad/new-api
+            doomnaiad-320/new-api
             ghcr.io/${{ github.repository }}
 
       - name: Build and push Docker images
