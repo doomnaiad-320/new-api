@@ -1,0 +1,334 @@
+name: Subscription Module Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'controller/subscription.go'
+      - 'model/subscription_*.go'
+      - 'model/user_subscription.go'
+      - 'service/subscription*.go'
+      - 'web/src/pages/Subscription/**'
+      - 'web/src/components/table/*Subscription*.js'
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version type (patch, minor, major)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      release_notes:
+        description: 'Release notes'
+        required: false
+        default: 'Subscription module updates'
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: oneapi
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: --health-cmd="redis-cli ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install dependencies
+        run: go mod download
+
+      - name: Wait for MySQL
+        run: |
+          until mysqladmin ping -h"127.0.0.1" -P3306 -uroot -proot --silent; do
+            echo 'waiting for mysql...'
+            sleep 1
+          done
+
+      - name: Run subscription module tests
+        env:
+          SQL_DSN: root:root@tcp(localhost:3306)/oneapi?charset=utf8mb4&parseTime=True&loc=Local
+          REDIS_CONN_STRING: redis://localhost:6379
+          SESSION_SECRET: test_secret
+        run: |
+          # 创建测试文件
+          cat > subscription_test.go << 'EOF'
+          package main
+
+          import (
+            "testing"
+            "one-api/model"
+            "one-api/service"
+          )
+
+          func TestSubscriptionModels(t *testing.T) {
+            // 测试订阅套餐模型
+            plan := &model.SubscriptionPlan{
+              Name:        "测试套餐",
+              Description: "测试描述",
+              Price:       10.0,
+              Duration:    30,
+              Status:      1,
+            }
+            
+            quotas := model.ModelQuotaMap{
+              "gpt-4": 100,
+              "claude-3": 50,
+            }
+            
+            err := plan.SetModelQuotasMap(quotas)
+            if err != nil {
+              t.Errorf("设置模型配额失败: %v", err)
+            }
+            
+            retrievedQuotas, err := plan.GetModelQuotasMap()
+            if err != nil {
+              t.Errorf("获取模型配额失败: %v", err)
+            }
+            
+            if len(retrievedQuotas) != 2 {
+              t.Errorf("配额数量不匹配，期望: 2, 实际: %d", len(retrievedQuotas))
+            }
+          }
+
+          func TestSubscriptionService(t *testing.T) {
+            service := service.NewSubscriptionService()
+            if service == nil {
+              t.Error("订阅服务创建失败")
+            }
+            
+            monitorService := service.NewSubscriptionMonitorService()
+            if monitorService == nil {
+              t.Error("订阅监控服务创建失败")
+            }
+          }
+          EOF
+          
+          go test -v ./subscription_test.go
+
+  build-and-release:
+    name: Build and Release
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Install frontend dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: web
+        run: npm run build
+
+      - name: Build backend
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o new-api-linux-amd64
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o new-api-linux-arm64
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o new-api-windows-amd64.exe
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o new-api-darwin-amd64
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o new-api-darwin-arm64
+
+      - name: Generate version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # 手动触发，使用输入的版本类型
+            VERSION_TYPE="${{ github.event.inputs.version_type }}"
+          else
+            # 自动触发，默认为patch版本
+            VERSION_TYPE="patch"
+          fi
+          
+          # 获取最新的tag
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v1.0.0")
+          
+          # 解析版本号
+          VERSION=${LATEST_TAG#v}
+          IFS='.' read -ra VERSION_PARTS <<< "$VERSION"
+          MAJOR=${VERSION_PARTS[0]}
+          MINOR=${VERSION_PARTS[1]}
+          PATCH=${VERSION_PARTS[2]}
+          
+          # 根据版本类型递增
+          case $VERSION_TYPE in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+          
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "version=${NEW_VERSION}" >> $GITHUB_OUTPUT
+          echo "Generated version: ${NEW_VERSION}"
+
+      - name: Create Release Notes
+        id: release_notes
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            NOTES="${{ github.event.inputs.release_notes }}"
+          else
+            NOTES="🎉 订阅计费模块自动发布
+
+          ✨ 本次更新包含订阅计费模块的最新改进：
+          
+          📊 **核心功能**
+          - 多重计费模式：订阅套餐 + token/次数计费自动切换
+          - 订阅套餐管理：支持多模型配额配置
+          - 实时配额监控：使用情况跟踪和预警
+          - 统计报表：收入分析和使用统计
+          
+          🔧 **技术特性**
+          - 无缝切换：订阅配额用完自动使用按量计费
+          - 灵活配置：每个套餐支持多个AI模型不同配额
+          - 实时监控：配额使用情况实时跟踪和预警
+          - 用户友好：直观的购买流程和配额显示
+          
+          📦 **部署说明**
+          - 支持 Docker 部署
+          - 自动数据库迁移
+          - 向后兼容现有系统"
+          fi
+          
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: "订阅计费模块 ${{ steps.version.outputs.version }}"
+          body: ${{ steps.release_notes.outputs.notes }}
+          files: |
+            new-api-linux-amd64
+            new-api-linux-arm64
+            new-api-windows-amd64.exe
+            new-api-darwin-amd64
+            new-api-darwin-arm64
+          draft: false
+          prerelease: false
+
+  docker-build:
+    name: Build and Push Docker Image
+    needs: [test, build-and-release]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+    
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            doomnaiad/new-api
+            ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=subscription-latest
+            type=raw,value=subscription-{{date 'YYYYMMDD'}}-{{sha}}
+            type=ref,event=branch,prefix=subscription-
+          labels: |
+            org.opencontainers.image.title=New API with Subscription Module
+            org.opencontainers.image.description=AI API proxy with subscription billing system
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  notify:
+    name: Notify Success
+    needs: [build-and-release, docker-build]
+    runs-on: ubuntu-latest
+    if: success()
+    
+    steps:
+      - name: Success Notification
+        run: |
+          echo "🎉 订阅计费模块发布成功！"
+          echo "📦 Release: ${{ needs.build-and-release.outputs.version }}"
+          echo "🐳 Docker: subscription-latest"
+          echo "🔗 GitHub: https://github.com/${{ github.repository }}/releases"
