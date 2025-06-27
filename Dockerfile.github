@@ -1,0 +1,32 @@
+FROM golang:alpine AS builder
+
+ENV GO111MODULE=on \
+    CGO_ENABLED=0 \
+    GOOS=linux
+
+WORKDIR /build
+
+# 复制Go模块文件
+ADD go.mod go.sum ./
+RUN go mod download
+
+# 复制源代码
+COPY . .
+
+# 复制预构建的前端文件
+COPY web/dist ./web/dist
+
+# 构建Go应用
+RUN go build -ldflags "-s -w -X 'one-api/common.Version=$(cat VERSION)'" -o one-api
+
+FROM alpine
+
+RUN apk update \
+    && apk upgrade \
+    && apk add --no-cache ca-certificates tzdata ffmpeg \
+    && update-ca-certificates
+
+COPY --from=builder /build/one-api /
+EXPOSE 3000
+WORKDIR /data
+ENTRYPOINT ["/one-api"]

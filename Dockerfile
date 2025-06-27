@@ -1,11 +1,20 @@
-FROM oven/bun:latest AS builder
+FROM node:18-alpine AS builder
 
+# 设置工作目录
 WORKDIR /build
-COPY web/package.json .
-RUN bun install
+
+# 复制package.json并安装依赖
+COPY web/package.json ./
+RUN npm install --legacy-peer-deps
+
+# 复制源代码和版本文件
 COPY ./web .
 COPY ./VERSION .
-RUN DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat VERSION) bun run build
+
+# 设置环境变量并构建
+ENV DISABLE_ESLINT_PLUGIN=true
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+RUN VITE_REACT_APP_VERSION=$(cat VERSION) npm run build
 
 FROM golang:alpine AS builder2
 

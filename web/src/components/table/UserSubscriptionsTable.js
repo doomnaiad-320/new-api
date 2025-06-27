@@ -34,7 +34,7 @@ import {
 import {
   IconSearch,
   IconRefresh,
-  IconEye
+  IconEyeOpened
 } from '@douyinfe/semi-icons';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTranslation } from 'react-i18next';
@@ -217,7 +217,7 @@ const UserSubscriptionsTable = () => {
       render: (text, record) => (
         <Button
           theme="borderless"
-          icon={<IconEye />}
+          icon={<IconEyeOpened />}
           onClick={() => {
             setSelectedSubscription(record);
             setShowDetail(true);

@@ -163,11 +163,17 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: web
-        run: npm ci
+        run: |
+          npm install --legacy-peer-deps
 
       - name: Build frontend
         working-directory: web
-        run: npm run build
+        env:
+          DISABLE_ESLINT_PLUGIN: true
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: |
+          echo "$(cat ../VERSION)" > VERSION
+          VITE_REACT_APP_VERSION=$(cat VERSION) npm run build
 
       - name: Build backend
         run: |
@@ -312,6 +318,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./Dockerfile.github
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

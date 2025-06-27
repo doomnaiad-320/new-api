@@ -20,8 +20,7 @@ import {
   Spin,
   Typography,
   Table,
-  Progress,
-  Statistic
+  Progress
 } from '@douyinfe/semi-ui';
 import { IconRefresh } from '@douyinfe/semi-icons';
 import { useTranslation } from 'react-i18next';
@@ -185,44 +184,54 @@ const SubscriptionStats = () => {
         <Row gutter={16}>
           <Col span={6}>
             <Card>
-              <Statistic
-                title={t('总订阅数')}
-                value={systemStats.total_subscriptions}
-                prefix={<Users size={16} />}
-                valueStyle={{ color: '#1890ff' }}
-              />
+              <Space vertical style={{ width: '100%' }}>
+                <Space>
+                  <Users size={16} style={{ color: '#1890ff' }} />
+                  <Text type="secondary">{t('总订阅数')}</Text>
+                </Space>
+                <Text size="large" strong style={{ color: '#1890ff' }}>
+                  {systemStats.total_subscriptions}
+                </Text>
+              </Space>
             </Card>
           </Col>
           <Col span={6}>
             <Card>
-              <Statistic
-                title={t('总收入')}
-                value={systemStats.total_revenue}
-                precision={2}
-                prefix={<DollarSign size={16} />}
-                suffix="元"
-                valueStyle={{ color: '#52c41a' }}
-              />
+              <Space vertical style={{ width: '100%' }}>
+                <Space>
+                  <DollarSign size={16} style={{ color: '#52c41a' }} />
+                  <Text type="secondary">{t('总收入')}</Text>
+                </Space>
+                <Text size="large" strong style={{ color: '#52c41a' }}>
+                  ¥{systemStats.total_revenue.toFixed(2)}
+                </Text>
+              </Space>
             </Card>
           </Col>
           <Col span={6}>
             <Card>
-              <Statistic
-                title={t('激活订阅')}
-                value={systemStats.status_counts?.find(s => s.status === 1)?.count || 0}
-                prefix={<Activity size={16} />}
-                valueStyle={{ color: '#52c41a' }}
-              />
+              <Space vertical style={{ width: '100%' }}>
+                <Space>
+                  <Activity size={16} style={{ color: '#52c41a' }} />
+                  <Text type="secondary">{t('激活订阅')}</Text>
+                </Space>
+                <Text size="large" strong style={{ color: '#52c41a' }}>
+                  {systemStats.status_counts?.find(s => s.status === 1)?.count || 0}
+                </Text>
+              </Space>
             </Card>
           </Col>
           <Col span={6}>
             <Card>
-              <Statistic
-                title={t('过期订阅')}
-                value={systemStats.status_counts?.find(s => s.status === 2)?.count || 0}
-                prefix={<Calendar size={16} />}
-                valueStyle={{ color: '#fa8c16' }}
-              />
+              <Space vertical style={{ width: '100%' }}>
+                <Space>
+                  <Calendar size={16} style={{ color: '#fa8c16' }} />
+                  <Text type="secondary">{t('过期订阅')}</Text>
+                </Space>
+                <Text size="large" strong style={{ color: '#fa8c16' }}>
+                  {systemStats.status_counts?.find(s => s.status === 2)?.count || 0}
+                </Text>
+              </Space>
             </Card>
           </Col>
         </Row>
@@ -278,36 +287,56 @@ const SubscriptionStats = () => {
         >
           <Row gutter={16} style={{ marginBottom: 16 }}>
             <Col span={6}>
-              <Statistic
-                title={t('总销量')}
-                value={report.total_sales}
-                prefix={<Package size={16} />}
-              />
+              <Card size="small">
+                <Space vertical style={{ width: '100%' }}>
+                  <Space>
+                    <Package size={16} />
+                    <Text type="secondary">{t('总销量')}</Text>
+                  </Space>
+                  <Text size="large" strong>
+                    {report.total_sales}
+                  </Text>
+                </Space>
+              </Card>
             </Col>
             <Col span={6}>
-              <Statistic
-                title={t('总收入')}
-                value={report.total_revenue}
-                precision={2}
-                prefix={<DollarSign size={16} />}
-                suffix="元"
-              />
+              <Card size="small">
+                <Space vertical style={{ width: '100%' }}>
+                  <Space>
+                    <DollarSign size={16} />
+                    <Text type="secondary">{t('总收入')}</Text>
+                  </Space>
+                  <Text size="large" strong>
+                    ¥{report.total_revenue.toFixed(2)}
+                  </Text>
+                </Space>
+              </Card>
             </Col>
             <Col span={6}>
-              <Statistic
-                title={t('激活数量')}
-                value={report.total_active}
-                prefix={<Activity size={16} />}
-                valueStyle={{ color: '#52c41a' }}
-              />
+              <Card size="small">
+                <Space vertical style={{ width: '100%' }}>
+                  <Space>
+                    <Activity size={16} style={{ color: '#52c41a' }} />
+                    <Text type="secondary">{t('激活数量')}</Text>
+                  </Space>
+                  <Text size="large" strong style={{ color: '#52c41a' }}>
+                    {report.total_active}
+                  </Text>
+                </Space>
+              </Card>
             </Col>
             <Col span={6}>
-              <Statistic
-                title={t('过期数量')}
-                value={report.total_expired}
-                prefix={<Calendar size={16} />}
-                valueStyle={{ color: '#fa8c16' }}
-              />
+              <Card size="small">
+                <Space vertical style={{ width: '100%' }}>
+                  <Space>
+                    <Calendar size={16} style={{ color: '#fa8c16' }} />
+                    <Text type="secondary">{t('过期数量')}</Text>
+                  </Space>
+                  <Text size="large" strong style={{ color: '#fa8c16' }}>
+                    {report.total_expired}
+                  </Text>
+                </Space>
+              </Card>
             </Col>
           </Row>
           
