@@ -160,5 +160,42 @@ func SetApiRouter(router *gin.Engine) {
 			taskRoute.GET("/self", middleware.UserAuth(), controller.GetUserTask)
 			taskRoute.GET("/", middleware.AdminAuth(), controller.GetAllTask)
 		}
+
+		// 订阅相关路由
+		subscriptionRoute := apiRouter.Group("/subscription")
+		{
+			// 公开接口 - 获取订阅套餐
+			subscriptionRoute.GET("/plans", controller.GetAllSubscriptionPlans)
+			subscriptionRoute.GET("/plans/search", controller.SearchSubscriptionPlans)
+			subscriptionRoute.GET("/plans/page", controller.GetSubscriptionPlansByPage)
+			subscriptionRoute.GET("/plans/:id", controller.GetSubscriptionPlan)
+
+			// 用户接口 - 需要登录
+			userSubscriptionRoute := subscriptionRoute.Group("/")
+			userSubscriptionRoute.Use(middleware.UserAuth())
+			{
+				userSubscriptionRoute.POST("/purchase", controller.PurchaseSubscription)
+				userSubscriptionRoute.GET("/my", controller.GetUserSubscriptions)
+				userSubscriptionRoute.GET("/active", controller.GetActiveUserSubscriptions)
+				userSubscriptionRoute.GET("/quotas", controller.GetSubscriptionQuotas)
+				userSubscriptionRoute.GET("/usage", controller.GetSubscriptionUsage)
+				userSubscriptionRoute.GET("/stats", controller.GetSubscriptionStats)
+				userSubscriptionRoute.GET("/summary", controller.GetUserSubscriptionSummary)
+			}
+
+			// 管理员接口 - 需要管理员权限
+			adminSubscriptionRoute := subscriptionRoute.Group("/admin")
+			adminSubscriptionRoute.Use(middleware.AdminAuth())
+			{
+				adminSubscriptionRoute.POST("/plans", controller.CreateSubscriptionPlan)
+				adminSubscriptionRoute.PUT("/plans/:id", controller.UpdateSubscriptionPlan)
+				adminSubscriptionRoute.DELETE("/plans/:id", controller.DeleteSubscriptionPlan)
+				adminSubscriptionRoute.GET("/users", controller.GetAllUserSubscriptions)
+				adminSubscriptionRoute.GET("/report", controller.GetSubscriptionReport)
+				adminSubscriptionRoute.GET("/system-stats", controller.GetSystemSubscriptionStats)
+				adminSubscriptionRoute.POST("/monitor", controller.TriggerSubscriptionMonitor)
+				adminSubscriptionRoute.POST("/cleanup", controller.CleanupExpiredSubscriptions)
+			}
+		}
 	}
 }

@@ -206,6 +206,36 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	usage *dto.Usage, preConsumedQuota int, userQuota int, priceData helper.PriceData, extraContent string) {
 
+	// 如果使用了订阅配额，实际消费订阅配额
+	if relayInfo.UsedSubscriptionQuota {
+		subscriptionService := NewSubscriptionService()
+		hasSubscription, _, err := subscriptionService.CheckAndConsumeSubscriptionQuota(ctx, relayInfo, relayInfo.OriginModelName, 1)
+		if err != nil {
+			common.SysError(fmt.Sprintf("消费订阅配额失败: %v", err))
+			// 如果订阅配额消费失败，回退到普通计费方式
+			relayInfo.UsedSubscriptionQuota = false
+		} else if hasSubscription {
+			common.LogInfo(ctx, fmt.Sprintf("用户 %d 使用订阅配额完成Claude请求，订阅ID: %d，模型: %s",
+				relayInfo.UserId, relayInfo.SubscriptionId, relayInfo.OriginModelName))
+
+			// 记录使用记录（包含token信息）
+			if usage != nil {
+				totalTokens := usage.PromptTokens + usage.CompletionTokens
+				err := model.RecordSubscriptionUsage(relayInfo.UserId, relayInfo.SubscriptionId,
+					relayInfo.OriginModelName, 1, totalTokens, relayInfo.RequestId)
+				if err != nil {
+					common.SysError(fmt.Sprintf("更新订阅使用记录失败: %v", err))
+				}
+			}
+			return
+		} else {
+			// 订阅配额不足，回退到普通计费方式
+			relayInfo.UsedSubscriptionQuota = false
+			common.LogInfo(ctx, fmt.Sprintf("用户 %d 订阅配额不足，回退到普通计费，模型: %s",
+				relayInfo.UserId, relayInfo.OriginModelName))
+		}
+	}
+
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
 	promptTokens := usage.PromptTokens
 	completionTokens := usage.CompletionTokens
@@ -272,6 +302,37 @@ func PostClaudeConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 
 func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	usage *dto.Usage, preConsumedQuota int, userQuota int, priceData helper.PriceData, extraContent string) {
+
+	// 如果使用了订阅配额，实际消费订阅配额
+	if relayInfo.UsedSubscriptionQuota {
+		subscriptionService := NewSubscriptionService()
+		hasSubscription, _, err := subscriptionService.CheckAndConsumeSubscriptionQuota(ctx, relayInfo, relayInfo.OriginModelName, 1)
+		if err != nil {
+			common.SysError(fmt.Sprintf("消费订阅配额失败: %v", err))
+			// 如果订阅配额消费失败，回退到普通计费方式
+			relayInfo.UsedSubscriptionQuota = false
+		} else if hasSubscription {
+			common.LogInfo(ctx, fmt.Sprintf("用户 %d 使用订阅配额完成Audio请求，订阅ID: %d，模型: %s",
+				relayInfo.UserId, relayInfo.SubscriptionId, relayInfo.OriginModelName))
+
+			// 记录使用记录（包含token信息）
+			if usage != nil {
+				totalTokens := usage.PromptTokensDetails.TextTokens + usage.CompletionTokenDetails.TextTokens +
+					usage.PromptTokensDetails.AudioTokens + usage.CompletionTokenDetails.AudioTokens
+				err := model.RecordSubscriptionUsage(relayInfo.UserId, relayInfo.SubscriptionId,
+					relayInfo.OriginModelName, 1, totalTokens, relayInfo.RequestId)
+				if err != nil {
+					common.SysError(fmt.Sprintf("更新订阅使用记录失败: %v", err))
+				}
+			}
+			return
+		} else {
+			// 订阅配额不足，回退到普通计费方式
+			relayInfo.UsedSubscriptionQuota = false
+			common.LogInfo(ctx, fmt.Sprintf("用户 %d 订阅配额不足，回退到普通计费，模型: %s",
+				relayInfo.UserId, relayInfo.OriginModelName))
+		}
+	}
 
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
 	textInputTokens := usage.PromptTokensDetails.TextTokens

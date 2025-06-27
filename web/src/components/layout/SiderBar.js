@@ -32,6 +32,10 @@ const routerMap = {
   task: '/console/task',
   playground: '/console/playground',
   personal: '/console/personal',
+  'subscription-plans': '/console/subscription',
+  'subscription-users': '/console/subscription/users',
+  'subscription-stats': '/console/subscription/stats',
+  'subscription-purchase': '/subscription/purchase',
 };
 
 const SiderBar = () => {
@@ -99,6 +103,11 @@ const SiderBar = () => {
         to: '/topup',
       },
       {
+        text: t('订阅套餐'),
+        itemKey: 'subscription-purchase',
+        to: '/subscription/purchase',
+      },
+      {
         text: t('个人设置'),
         itemKey: 'personal',
         to: '/personal',
@@ -126,6 +135,28 @@ const SiderBar = () => {
         itemKey: 'user',
         to: '/user',
         className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('订阅管理'),
+        itemKey: 'subscription',
+        className: isAdmin() ? '' : 'tableHiddle',
+        items: [
+          {
+            text: t('套餐管理'),
+            itemKey: 'subscription-plans',
+            to: '/subscription',
+          },
+          {
+            text: t('用户订阅'),
+            itemKey: 'subscription-users',
+            to: '/subscription/users',
+          },
+          {
+            text: t('统计报表'),
+            itemKey: 'subscription-stats',
+            to: '/subscription/stats',
+          },
+        ],
       },
       {
         text: t('系统设置'),

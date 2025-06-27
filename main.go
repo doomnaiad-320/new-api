@@ -82,6 +82,12 @@ func main() {
 
 	service.InitTokenEncoders()
 
+	// Initialize subscription scheduler
+	subscriptionScheduler := service.NewSubscriptionScheduler()
+	subscriptionScheduler.Start()
+	subscriptionScheduler.StartDailyScheduler()
+	common.SysLog("subscription scheduler started")
+
 	if common.RedisEnabled {
 		// for compatibility with old versions
 		common.MemoryCacheEnabled = true

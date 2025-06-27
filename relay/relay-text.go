@@ -283,6 +283,23 @@ func checkRequestSensitive(textRequest *dto.GeneralOpenAIRequest, info *relaycom
 
 // 预扣费并返回用户剩余配额
 func preConsumeQuota(c *gin.Context, preConsumedQuota int, relayInfo *relaycommon.RelayInfo) (int, int, *dto.OpenAIErrorWithStatusCode) {
+	// 首先检查订阅配额是否可用
+	subscriptionService := service.NewSubscriptionService()
+	hasSubscription, quotaInfo, err := subscriptionService.CheckModelQuotaAvailable(relayInfo.UserId, relayInfo.OriginModelName, 1)
+	if err != nil {
+		common.LogError(c, fmt.Sprintf("检查订阅配额失败: %v", err))
+		// 不阻断请求，继续使用原有计费方式
+	}
+
+	if hasSubscription && quotaInfo != nil && quotaInfo.Remaining > 0 {
+		// 有可用订阅配额，标记使用订阅配额
+		relayInfo.UsedSubscriptionQuota = true
+		common.LogInfo(c, fmt.Sprintf("用户 %d 将使用订阅配额，模型: %s，剩余: %d",
+			relayInfo.UserId, relayInfo.OriginModelName, quotaInfo.Remaining))
+		return 0, 0, nil
+	}
+
+	// 没有可用订阅配额，使用原有计费方式
 	userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
 	if err != nil {
 		return 0, 0, service.OpenAIErrorWrapperLocal(err, "get_user_quota_failed", http.StatusInternalServerError)
@@ -340,6 +357,37 @@ func returnPreConsumedQuota(c *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 func postConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	usage *dto.Usage, preConsumedQuota int, userQuota int, priceData helper.PriceData, extraContent string) {
+
+	// 如果使用了订阅配额，实际消费订阅配额
+	if relayInfo.UsedSubscriptionQuota {
+		subscriptionService := service.NewSubscriptionService()
+		hasSubscription, _, err := subscriptionService.CheckAndConsumeSubscriptionQuota(ctx, relayInfo, relayInfo.OriginModelName, 1)
+		if err != nil {
+			common.SysError(fmt.Sprintf("消费订阅配额失败: %v", err))
+			// 如果订阅配额消费失败，回退到普通计费方式
+			relayInfo.UsedSubscriptionQuota = false
+		} else if hasSubscription {
+			common.LogInfo(ctx, fmt.Sprintf("用户 %d 使用订阅配额完成请求，订阅ID: %d，模型: %s",
+				relayInfo.UserId, relayInfo.SubscriptionId, relayInfo.OriginModelName))
+
+			// 记录使用记录（包含token信息）
+			if usage != nil {
+				totalTokens := usage.PromptTokens + usage.CompletionTokens
+				err := model.RecordSubscriptionUsage(relayInfo.UserId, relayInfo.SubscriptionId,
+					relayInfo.OriginModelName, 1, totalTokens, relayInfo.RequestId)
+				if err != nil {
+					common.SysError(fmt.Sprintf("更新订阅使用记录失败: %v", err))
+				}
+			}
+			return
+		} else {
+			// 订阅配额不足，回退到普通计费方式
+			relayInfo.UsedSubscriptionQuota = false
+			common.LogInfo(ctx, fmt.Sprintf("用户 %d 订阅配额不足，回退到普通计费，模型: %s",
+				relayInfo.UserId, relayInfo.OriginModelName))
+		}
+	}
+
 	if usage == nil {
 		usage = &dto.Usage{
 			PromptTokens:     relayInfo.PromptTokens,

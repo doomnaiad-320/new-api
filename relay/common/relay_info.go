@@ -100,6 +100,8 @@ type RelayInfo struct {
 	RelayFormat          string
 	SendResponseCount    int
 	ChannelCreateTime    int64
+	UsedSubscriptionQuota bool  // 是否使用了订阅配额
+	SubscriptionId       int   // 使用的订阅ID
 	ThinkingContentInfo
 	*ClaudeConvertInfo
 	*RerankerInfo

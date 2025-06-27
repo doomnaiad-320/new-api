@@ -26,6 +26,10 @@ import OAuth2Callback from './components/auth/OAuth2Callback.js';
 import PersonalSetting from './components/settings/PersonalSetting.js';
 import Setup from './pages/Setup/index.js';
 import SetupCheck from './components/layout/SetupCheck.js';
+import Subscription from './pages/Subscription';
+import UserSubscriptions from './pages/Subscription/UserSubscriptions';
+import SubscriptionStats from './pages/Subscription/SubscriptionStats';
+import SubscriptionPurchase from './pages/Subscription/Purchase';
 
 const Home = lazy(() => import('./pages/Home'));
 const Detail = lazy(() => import('./pages/Detail'));
@@ -254,11 +258,51 @@ function App() {
           }
         />
         <Route
+          path='/console/subscription'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Subscription />
+              </Suspense>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/subscription/users'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <UserSubscriptions />
+              </Suspense>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/subscription/stats'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <SubscriptionStats />
+              </Suspense>
+            </PrivateRoute>
+          }
+        />
+        <Route
           path='/pricing'
           element={
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
               <Pricing />
             </Suspense>
+          }
+        />
+        <Route
+          path='/subscription/purchase'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <SubscriptionPurchase />
+              </Suspense>
+            </PrivateRoute>
           }
         />
         <Route
